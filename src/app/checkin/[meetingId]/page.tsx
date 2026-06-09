@@ -62,24 +62,16 @@ function CheckInContent() {
     }
   };
 
-  // 下载引导页
+  // 非企微访问提示
   if (nonWxwork) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-6 text-center">
-        <div className="text-6xl mb-6">📱</div>
-        <h1 className="text-xl font-bold mb-2">请使用企业微信扫码</h1>
-        <p className="text-gray-500 mb-8">检测到你还没有安装企业微信，请先下载</p>
-        <a
-          href="https://work.weixin.qq.com/"
-          className="bg-green-500 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-green-600 mb-4 w-full max-w-xs inline-block"
-        >
-          📥 下载企业微信
-        </a>
-        <p className="text-sm text-gray-400 mb-6">安装后重新扫码即可签到</p>
-        <div className="bg-white rounded-lg p-4 text-left text-sm text-gray-500 max-w-xs">
-          <p className="font-semibold text-gray-600 mb-2">💡 已经有企业微信？</p>
-          <p>· 请用<strong>企业微信的扫一扫</strong>重新扫码</p>
-          <p>· 或在企微中<strong>打开工作台</strong>找到签到应用</p>
+      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center px-6 text-center">
+        <div className="text-7xl mb-6">📱</div>
+        <h1 className="text-3xl font-extrabold text-gray-900 mb-3">请使用企业微信扫码</h1>
+        <p className="text-gray-700 text-lg mb-6">当前页面仅支持在<strong className="text-gray-900">企业微信</strong>中打开</p>
+        <div className="bg-white rounded-xl p-6 text-left text-base text-gray-800 max-w-sm shadow space-y-2">
+          <p>✅ 打开<strong className="text-gray-900">企业微信</strong>，用扫一扫扫描签到二维码</p>
+          <p>❌ 微信、浏览器扫码均无法进入</p>
         </div>
       </div>
     );
@@ -91,7 +83,7 @@ function CheckInContent() {
       <div className="min-h-screen flex items-center justify-center px-6">
         <div className="text-center">
           <div className="text-4xl mb-4">😕</div>
-          <p className="text-gray-600">{error}</p>
+          <p className="text-gray-800 text-base">{error}</p>
         </div>
       </div>
     );
@@ -101,7 +93,7 @@ function CheckInContent() {
   if (!preview) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-400">加载中...</p>
+        <p className="text-gray-600 text-lg">加载中...</p>
       </div>
     );
   }
@@ -113,55 +105,55 @@ function CheckInContent() {
       <div className="max-w-sm mx-auto">
         <div className="text-center mb-6">
           <div className="text-5xl mb-3">{checkedIn ? '✅' : '📋'}</div>
-          <h1 className="text-xl font-bold">{checkedIn ? '签到成功' : '签到确认'}</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-extrabold text-gray-900">{checkedIn ? '签到成功' : '签到确认'}</h1>
+          <p className="text-base text-gray-600 mt-2">
             {checkedIn ? '你已完成签到' : '会议信息已确认，身份已匹配'}
           </p>
         </div>
 
-        <div className="bg-white rounded-xl p-4 shadow-sm mb-4">
-          <h2 className="font-semibold">📋 {preview.meeting.title}</h2>
-          <p className="text-sm text-gray-500 mt-2">
+        <div className="bg-white rounded-xl p-5 shadow-sm mb-4">
+          <h2 className="font-bold text-gray-900 text-lg">📋 {preview.meeting.title}</h2>
+          <p className="text-base text-gray-700 mt-2">
             🕐 {new Date(preview.meeting.startTime).toLocaleString('zh-CN')}
           </p>
           {preview.meeting.location && (
-            <p className="text-sm text-gray-500 mt-1">📍 {preview.meeting.location}</p>
+            <p className="text-base text-gray-700 mt-1">📍 {preview.meeting.location}</p>
           )}
         </div>
 
-        <div className="bg-green-50 rounded-xl p-4 mb-6">
+        <div className="bg-green-50 rounded-xl p-5 mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-green-500 text-white flex items-center justify-center text-lg font-bold">
+            <div className="w-12 h-12 rounded-full bg-green-500 text-white flex items-center justify-center text-xl font-bold">
               {preview.employee.name.charAt(0)}
             </div>
             <div>
-              <p className="font-semibold">{preview.employee.name}</p>
-              <p className="text-sm text-gray-500">{preview.employee.department || '-'}</p>
+              <p className="font-bold text-gray-900 text-lg">{preview.employee.name}</p>
+              <p className="text-base text-gray-600">{preview.employee.department || '-'}</p>
             </div>
           </div>
         </div>
 
-        {error && <p className="text-red-500 text-sm text-center mb-3">{error}</p>}
+        {error && <p className="text-red-600 text-base text-center mb-3 font-semibold">{error}</p>}
 
         {checkedIn ? (
-          <button disabled className="w-full py-3 rounded-lg text-lg font-semibold bg-gray-200 text-gray-500">
+          <button disabled className="w-full py-4 rounded-lg text-lg font-bold bg-gray-300 text-gray-600">
             已签到 ✅
           </button>
         ) : isEnded ? (
-          <button disabled className="w-full py-3 rounded-lg text-lg font-semibold bg-gray-200 text-gray-500">
+          <button disabled className="w-full py-4 rounded-lg text-lg font-bold bg-gray-300 text-gray-600">
             会议已结束
           </button>
         ) : (
           <button
             onClick={handleCheckIn}
             disabled={loading}
-            className="w-full py-3 rounded-lg text-lg font-semibold bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
+            className="w-full py-4 rounded-lg text-xl font-bold bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
           >
             {loading ? '签到中...' : '签到'}
           </button>
         )}
 
-        <p className="text-xs text-gray-400 text-center mt-4">扫码自动匹配身份，无需手动输入</p>
+        <p className="text-sm text-gray-500 text-center mt-4">扫码自动匹配身份，无需手动输入</p>
       </div>
     </div>
   );
@@ -171,7 +163,7 @@ export default function CheckInPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-400">加载中...</p>
+        <p className="text-gray-600 text-lg">加载中...</p>
       </div>
     }>
       <CheckInContent />

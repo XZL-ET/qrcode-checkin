@@ -48,7 +48,12 @@ export async function getWeWorkUserId(code: string): Promise<string> {
     throw new Error(`Failed to get userid: ${userData.errmsg}`);
   }
 
-  return userData.userid;
+  // 企微 API 返回的用户标识字段有大小写变体
+  const userId = userData.UserId || userData.userid || userData.openid;
+  console.log('[auth] getWeWorkUserId raw response:', JSON.stringify(userData));
+  console.log('[auth] getWeWorkUserId resolved userid:', userId);
+
+  return userId;
 }
 
 // 生成企微 OAuth 授权 URL

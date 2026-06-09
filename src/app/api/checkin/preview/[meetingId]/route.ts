@@ -20,6 +20,14 @@ export async function GET(
 
   try {
     const userid = await getWeWorkUserId(code);
+    console.log('[checkin] OAuth code → userid:', userid);
+
+    if (!userid) {
+      return NextResponse.json(
+        { success: false, error: 'OAuth 授权失败，企微未返回用户标识，请重试扫码' },
+        { status: 403 }
+      );
+    }
 
     const employee = await prisma.employee.findUnique({
       where: { weworkUserid: userid },
@@ -27,8 +35,9 @@ export async function GET(
     });
 
     if (!employee) {
+      console.log('[checkin] Employee not found for userid:', userid);
       return NextResponse.json(
-        { success: false, error: '未找到你的信息，请联系管理员' },
+        { success: false, error: `未找到你的信息（企微账号: ${userid}），请联系管理员同步通讯录` },
         { status: 403 }
       );
     }
