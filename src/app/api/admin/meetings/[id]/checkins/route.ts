@@ -4,12 +4,13 @@ import { authenticateAdmin } from '@/lib/admin-guard';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await authenticateAdmin(request);
   if (auth instanceof NextResponse) return auth;
 
-  const id = parseInt(params.id);
+  const { id: idStr } = await params;
+  const id = parseInt(idStr);
 
   const meeting = await prisma.meeting.findUnique({ where: { id } });
   if (!meeting) {

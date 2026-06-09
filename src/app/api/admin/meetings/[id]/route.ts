@@ -4,12 +4,13 @@ import { authenticateAdmin } from '@/lib/admin-guard';
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await authenticateAdmin(request);
   if (auth instanceof NextResponse) return auth;
 
-  const id = parseInt(params.id);
+  const { id: idStr } = await params;
+  const id = parseInt(idStr);
   const { title, location, startTime, endTime, status } = await request.json();
 
   const meeting = await prisma.meeting.update({
@@ -30,12 +31,13 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await authenticateAdmin(request);
   if (auth instanceof NextResponse) return auth;
 
-  const id = parseInt(params.id);
+  const { id: idStr } = await params;
+  const id = parseInt(idStr);
   await prisma.meeting.delete({ where: { id } });
 
   return NextResponse.json({ success: true });

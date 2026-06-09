@@ -4,9 +4,10 @@ import { getWeWorkUserId } from '@/lib/auth';
 
 export async function GET(
   request: Request,
-  { params }: { params: { meetingId: string } }
+  { params }: { params: Promise<{ meetingId: string }> }
 ) {
-  const meetingId = parseInt(params.meetingId);
+  const { meetingId: meetingIdStr } = await params;
+  const meetingId = parseInt(meetingIdStr);
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
 

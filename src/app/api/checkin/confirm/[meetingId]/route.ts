@@ -3,9 +3,10 @@ import { prisma } from '@/lib/db';
 
 export async function POST(
   request: Request,
-  { params }: { params: { meetingId: string } }
+  { params }: { params: Promise<{ meetingId: string }> }
 ) {
-  const meetingId = parseInt(params.meetingId);
+  const { meetingId: meetingIdStr } = await params;
+  const meetingId = parseInt(meetingIdStr);
   const { employeeId } = await request.json();
 
   if (!employeeId) {
