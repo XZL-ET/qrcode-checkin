@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique @db.VarChar(50)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  meetings     Meeting[]
+
+  @@map("admins")
+}
+
+model Department {
+  id           Int        @id @default(autoincrement())
+  weworkDeptId BigInt     @unique @map("wework_dept_id")
+  name         String     @db.VarChar(100)
+  parentId     Int?       @map("parent_id")
+  syncTime     DateTime   @default(now()) @map("sync_time")
+  parent       Department? @relation("DepartmentTree", fields: [parentId], references: [id])
+  children     Department[] @relation("DepartmentTree")
+  employees    Employee[]
+
+  @@map("departments")
+}
+
+model Employee {
+  id           Int        @id @default(autoincrement())
+  departmentId Int?       @map("department_id")
+  weworkUserid String     @unique @map("wework_userid") @db.VarChar(64)
+  name         String     @db.VarChar(50)
+  avatar       String?    @db.VarChar(255)
+  mobile       String?    @db.VarChar(20)
+  syncTime     DateTime   @default(now()) @map("sync_time")
+  department   Department? @relation(fields: [departmentId], references: [id])
+  checkIns     CheckIn[]
+
+  @@map("employees")
+}
+
+model Meeting {
+  id        Int       @id @default(autoincrement())
+  title     String    @db.VarChar(200)
+  location  String?   @db.VarChar(200)
+  startTime DateTime  @map("start_time")
+  endTime   DateTime? @map("end_time")
+  qrCodeUrl String?   @map("qr_code_url") @db.VarChar(500)
+  status    MeetingStatus @default(pending)
+  createdBy Int       @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+  admin     Admin     @relation(fields: [createdBy], references: [id])
+  checkIns  CheckIn[]
+
+  @@map("meetings")
+}
+
+enum MeetingStatus {
+  pending
+  active
+  ended
+}
+
+model CheckIn {
+  id          Int      @id @default(autoincrement())
+  meetingId   Int      @map("meeting_id")
+  employeeId  Int      @map("employee_id")
+  checkInTime DateTime @default(now()) @map("check_in_time")
+  meeting     Meeting  @relation(fields: [meetingId], references: [id])
+  employee    Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([meetingId, employeeId])
+  @@map("check_ins")
+}
