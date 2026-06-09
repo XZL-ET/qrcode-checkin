@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: qiandao-app
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=mysql://qiandao:${DB_PASSWORD:-qiandao-pass}@mysql:3306/qiandao
+      - JWT_SECRET=${JWT_SECRET:-change-me-to-a-random-string}
+      - WEWORK_CORP_ID=${WEWORK_CORP_ID}
+      - WEWORK_CORP_SECRET=${WEWORK_CORP_SECRET}
+      - WEWORK_AGENT_ID=${WEWORK_AGENT_ID}
+      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    container_name: qiandao-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root-pass}
+      MYSQL_DATABASE: qiandao
+      MYSQL_USER: qiandao
+      MYSQL_PASSWORD: ${DB_PASSWORD:-qiandao-pass}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "qiandao", "-p${DB_PASSWORD:-qiandao-pass}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+volumes:
+  mysql-data:
