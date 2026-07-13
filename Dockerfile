@@ -21,20 +21,23 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-RUN apk add --no-cache openssl netcat-openbsd
+RUN apk add --no-cache openssl netcat-openbsd tzdata && \
+    cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" > /etc/timezone
 
 ENV NODE_ENV=production
+ENV TZ=Asia/Shanghai
 
-# 复制 standalone 输出
+# 复制 standalone 输出（不含其 node_modules，用完整版覆盖）
 COPY --from=builder /app/.next/standalone ./
+RUN rm -rf /app/node_modules
+# 复制完整 node_modules（Next.js standalone trace 会遗漏 bcryptjs/jose 等）
+COPY --from=builder /app/node_modules ./node_modules
 # 复制静态资源
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
-# 复制 Prisma 相关文件（用于运行时 migration）
+# 复制 Prisma schema（用于运行时 migration）
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # 复制启动脚本
 COPY docker-entrypoint.sh ./

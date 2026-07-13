@@ -59,37 +59,17 @@ async function getAccessToken(): Promise<string> {
 }
 
 /**
- * 获取指定部门的直接子部门。
- * 企微 API: department/list?id=N 返回部门 N 的下级部门列表。
+ * 获取全部部门（含嵌套子部门）。
+ * 企微 API: department/list?id=0 从根开始递归返回所有部门。
  */
-async function fetchChildDepartments(token: string, parentId: number): Promise<WeWorkDepartment[]> {
-  const url = `https://qyapi.weixin.qq.com/cgi-bin/department/list?access_token=${token}&id=${parentId}`;
+async function fetchDepartments(token: string): Promise<WeWorkDepartment[]> {
+  const url = `https://qyapi.weixin.qq.com/cgi-bin/department/list?access_token=${token}&id=0`;
   const res = await fetch(url);
   const data = await res.json();
   if (data.errcode !== 0) {
-    throw new Error(`获取部门列表失败 (parent=${parentId}): ${data.errmsg} (errcode=${data.errcode})`);
+    throw new Error(`获取部门列表失败: ${data.errmsg} (errcode=${data.errcode})`);
   }
   return data.department ?? [];
-}
-
-/**
- * BFS 递归获取全部部门（不依赖 API 是否递归返回）。
- * 从根部门 (id=0) 开始逐层拉取，直到没有子部门为止。
- */
-async function fetchAllDepartments(token: string): Promise<WeWorkDepartment[]> {
-  const result: WeWorkDepartment[] = [];
-  const queue: number[] = [0]; // 0 = 根部门
-
-  while (queue.length > 0) {
-    const parentId = queue.shift()!;
-    const children = await fetchChildDepartments(token, parentId);
-    for (const dept of children) {
-      result.push(dept);
-      queue.push(dept.id);
-    }
-  }
-
-  return result;
 }
 
 async function fetchDepartmentMembers(token: string, deptId: number): Promise<WeWorkMember[]> {
@@ -108,8 +88,8 @@ export async function syncContacts(): Promise<{ deptCount: number; empCount: num
   const token = await getAccessToken();
   const syncStartTime = new Date();
 
-  // 1. 同步部门 —— BFS 从根开始递归获取全部部门
-  const allDepts = await fetchAllDepartments(token);
+  // 1. 同步部门 —— 一次调用获取全部部门（id=0 递归返回所有）
+  const allDepts = await fetchDepartments(token);
 
   for (const dept of allDepts) {
     await prisma.department.upsert({
