@@ -146,17 +146,9 @@ function CheckInContent() {
         {error && <p className="text-red-600 text-base text-center mb-3 font-semibold">{error}</p>}
 
         {checkedIn ? (
-          <>
-            <button disabled className="w-full py-4 rounded-lg text-lg font-bold bg-gray-300 text-gray-600">
-              已签到 ✅
-            </button>
-            <a
-              href="/checkin/records"
-              className="block text-center text-green-600 underline mt-4 text-sm"
-            >
-              查看我的签到记录 →
-            </a>
-          </>
+          <button disabled className="w-full py-4 rounded-lg text-lg font-bold bg-gray-300 text-gray-600">
+            已签到 ✅
+          </button>
         ) : isPending ? (
           <button disabled className="w-full py-4 rounded-lg text-lg font-bold bg-gray-300 text-gray-600">
             会议未开始
