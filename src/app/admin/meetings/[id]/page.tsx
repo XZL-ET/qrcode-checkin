@@ -3,10 +3,25 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 
+/** 将 Date/ISO 字符串转为 datetime-local 输入框所需的本地时间格式 (YYYY-MM-DDTHH:mm) */
+function toDatetimeLocalValue(date: string | Date): string {
+  const d = new Date(date);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** 将 datetime-local 输入框的值转为带时区的 ISO 字符串，确保服务器能正确解析 */
+function toISOString(datetimeLocal: string): string {
+  if (!datetimeLocal) return '';
+  // 补上秒数后由浏览器按本地时区解析，再输出 UTC ISO 字符串
+  const d = new Date(datetimeLocal + ':00');
+  return d.toISOString();
+}
+
 export default function EditMeetingPage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const [form, setForm] = useState({ title: '', location: '', startTime: '', endTime: '', status: 'pending' });
+  const [form, setForm] = useState({ title: '', location: '', startTime: '', endTime: '' });
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
@@ -24,14 +39,14 @@ export default function EditMeetingPage() {
             setForm({
               title: m.title,
               location: m.location || '',
-              startTime: new Date(m.startTime).toISOString().slice(0, 16),
-              endTime: m.endTime ? new Date(m.endTime).toISOString().slice(0, 16) : '',
-              status: m.status,
+              startTime: toDatetimeLocalValue(m.startTime),
+              endTime: m.endTime ? toDatetimeLocalValue(m.endTime) : '',
             });
           }
         }
         setFetching(false);
-      });
+      })
+      .catch(() => setFetching(false));
   }, [id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,7 +58,11 @@ export default function EditMeetingPage() {
     const res = await fetch(`/api/admin/meetings/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        startTime: toISOString(form.startTime),
+        endTime: form.endTime ? toISOString(form.endTime) : '',
+      }),
     });
     const data = await res.json();
 
@@ -62,7 +81,7 @@ export default function EditMeetingPage() {
           <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" required />
         </div>
         <div>
-          <label className="block text-sm text-gray-600 mb-1">地点</label>
+          <label className="block text-sm text-gray-600 mb-1">会议详细</label>
           <input type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
         </div>
         <div>
@@ -72,14 +91,6 @@ export default function EditMeetingPage() {
         <div>
           <label className="block text-sm text-gray-600 mb-1">结束时间</label>
           <input type="datetime-local" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
-        </div>
-        <div>
-          <label className="block text-sm text-gray-600 mb-1">状态</label>
-          <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
-            <option value="pending">未开始</option>
-            <option value="active">进行中</option>
-            <option value="ended">已结束</option>
-          </select>
         </div>
         {error && <p className="text-red-500 text-sm">{error}</p>}
         <div className="flex gap-3">

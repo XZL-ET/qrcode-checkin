@@ -8,6 +8,7 @@ interface PreviewData {
   employee: { id: number; name: string; department: string | null; avatar: string | null };
   alreadyCheckedIn: boolean;
   meetingStatus: string;
+  confirmToken: string;
 }
 
 function CheckInContent() {
@@ -46,12 +47,20 @@ function CheckInContent() {
       const res = await fetch(`/api/checkin/confirm/${meetingId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId: preview.employee.id }),
+        body: JSON.stringify({ employeeId: preview.employee.id, token: preview.confirmToken }),
       });
       const data = await res.json();
 
       if (data.success) {
         setCheckedIn(true);
+        // 签到成功后 1.5 秒自动关闭窗口
+        setTimeout(() => {
+          if (typeof window !== 'undefined' && (window as unknown as { WeixinJSBridge?: { call: (method: string) => void } }).WeixinJSBridge) {
+            (window as unknown as { WeixinJSBridge: { call: (method: string) => void } }).WeixinJSBridge.call('closeWindow');
+          } else {
+            window.close();
+          }
+        }, 1500);
       } else {
         setError(data.error);
       }
@@ -99,6 +108,7 @@ function CheckInContent() {
   }
 
   const isEnded = preview.meetingStatus === 'ended';
+  const isPending = preview.meetingStatus === 'pending';
 
   return (
     <div className="min-h-screen bg-gray-50 px-5 py-10">
@@ -107,7 +117,7 @@ function CheckInContent() {
           <div className="text-5xl mb-3">{checkedIn ? '✅' : '📋'}</div>
           <h1 className="text-2xl font-extrabold text-gray-900">{checkedIn ? '签到成功' : '签到确认'}</h1>
           <p className="text-base text-gray-600 mt-2">
-            {checkedIn ? '你已完成签到' : '会议信息已确认，身份已匹配'}
+            {checkedIn ? '你已完成签到，窗口即将关闭' : '会议信息已确认，身份已匹配'}
           </p>
         </div>
 
@@ -136,8 +146,20 @@ function CheckInContent() {
         {error && <p className="text-red-600 text-base text-center mb-3 font-semibold">{error}</p>}
 
         {checkedIn ? (
+          <>
+            <button disabled className="w-full py-4 rounded-lg text-lg font-bold bg-gray-300 text-gray-600">
+              已签到 ✅
+            </button>
+            <a
+              href={`/checkin/records?code=${code}`}
+              className="block text-center text-green-600 underline mt-4 text-sm"
+            >
+              查看我的签到记录 →
+            </a>
+          </>
+        ) : isPending ? (
           <button disabled className="w-full py-4 rounded-lg text-lg font-bold bg-gray-300 text-gray-600">
-            已签到 ✅
+            会议未开始
           </button>
         ) : isEnded ? (
           <button disabled className="w-full py-4 rounded-lg text-lg font-bold bg-gray-300 text-gray-600">

@@ -30,6 +30,8 @@ ENV TZ=Asia/Shanghai
 
 # 复制 standalone 输出（不含其 node_modules，用完整版覆盖）
 COPY --from=builder /app/.next/standalone ./
+# 清理泄露的敏感文件
+RUN rm -f /app/.env /app/.env.production /app/.env.local 2>/dev/null || true
 RUN rm -rf /app/node_modules
 # 复制完整 node_modules（Next.js standalone trace 会遗漏 bcryptjs/jose 等）
 COPY --from=builder /app/node_modules ./node_modules

@@ -1,18 +1,23 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { authenticateAdmin } from '@/lib/admin-guard';
+import { computeMeetingStatus } from '@/lib/meeting-utils';
 
 export async function GET(request: Request) {
   const auth = await authenticateAdmin(request);
   if (auth instanceof NextResponse) return auth;
 
-  const [totalMeetings, activeMeetings, totalCheckIns, employeeCount] =
+  const [totalMeetings, allMeetings, totalCheckIns, employeeCount] =
     await Promise.all([
       prisma.meeting.count(),
-      prisma.meeting.count({ where: { status: 'active' } }),
+      prisma.meeting.findMany({ select: { startTime: true, endTime: true } }),
       prisma.checkIn.count(),
       prisma.employee.count(),
     ]);
+
+  const activeMeetings = allMeetings.filter(
+    (m) => computeMeetingStatus(m.startTime, m.endTime) === 'active'
+  ).length;
 
   const avgRate =
     totalMeetings > 0

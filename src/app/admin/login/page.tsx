@@ -30,7 +30,7 @@ export default function AdminLoginPage() {
 
       localStorage.setItem('admin_token', data.data.token);
       localStorage.setItem('admin_username', data.data.username);
-      router.push('/admin/meetings');
+      router.push('/admin');
     } catch {
       setError('网络错误，请重试');
     } finally {

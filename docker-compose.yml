@@ -7,27 +7,35 @@ services:
     ports:
       - "3000:3000"
     environment:
+      - HOSTNAME=0.0.0.0
+      - TZ=Asia/Shanghai
       - DATABASE_URL=mysql://qiandao:${DB_PASSWORD:-qiandao-pass}@mysql:3306/qiandao
-      - JWT_SECRET=${JWT_SECRET:-change-me-to-a-random-string}
-      - WEWORK_CORP_ID=${WEWORK_CORP_ID}
-      - WEWORK_CORP_SECRET=${WEWORK_CORP_SECRET}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
+      - WEWORK_CORP_ID=${WEWORK_CORP_ID:?WEWORK_CORP_ID must be set}
+      - WEWORK_CORP_SECRET=${WEWORK_CORP_SECRET:?WEWORK_CORP_SECRET must be set}
       - WEWORK_AGENT_ID=${WEWORK_AGENT_ID}
-      - NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL:-http://localhost:3000}
+      - BASE_URL=${BASE_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_BASE_URL=${BASE_URL:-http://localhost:3000}
     depends_on:
       mysql:
         condition: service_healthy
+    command: ["node", "server.js", "-H", "0.0.0.0"]
     restart: unless-stopped
+    networks:
+      - default
+      - deploy_default
 
   mysql:
     image: mysql:8.0
     container_name: qiandao-mysql
     environment:
+      TZ: Asia/Shanghai
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root-pass}
       MYSQL_DATABASE: qiandao
       MYSQL_USER: qiandao
       MYSQL_PASSWORD: ${DB_PASSWORD:-qiandao-pass}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
       - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -38,6 +46,10 @@ services:
       retries: 10
     restart: unless-stopped
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+networks:
+  deploy_default:
+    external: true
 
 volumes:
   mysql-data:

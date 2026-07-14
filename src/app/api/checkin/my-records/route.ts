@@ -43,7 +43,8 @@ export async function GET(request: Request) {
       })),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : '服务器错误';
+    console.error('[my-records]', error instanceof Error ? error.message : error);
+    const message = '获取签到记录失败，请重试';
     return NextResponse.json(
       { success: false, error: message },
       { status: 500 }

@@ -76,6 +76,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span className="text-gray-400 text-sm">管理后台</span>
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/admin" className="text-sm hover:text-green-400">仪表盘</Link>
           <Link href="/admin/meetings" className="text-sm hover:text-green-400">会议管理</Link>
           <button
             onClick={handleSync}

@@ -2,6 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { openQRCodePopup } from '@/lib/qrcode-popup';
+
+/** 将 datetime-local 输入框的值转为带时区的 ISO 字符串，确保服务器能正确解析 */
+function toISOString(datetimeLocal: string): string {
+  if (!datetimeLocal) return '';
+  const d = new Date(datetimeLocal + ':00');
+  return d.toISOString();
+}
 
 export default function NewMeetingPage() {
   const router = useRouter();
@@ -19,28 +27,35 @@ export default function NewMeetingPage() {
     setError('');
     setLoading(true);
 
-    const token = localStorage.getItem('admin_token');
-    const res = await fetch('/api/admin/meetings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
+    try {
+      const token = localStorage.getItem('admin_token');
+      const res = await fetch('/api/admin/meetings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...form,
+          startTime: toISOString(form.startTime),
+          endTime: form.endTime ? toISOString(form.endTime) : '',
+        }),
+      });
+      const data = await res.json();
 
-    if (!data.success) {
-      setError(data.error);
+      if (!data.success) {
+        setError(data.error);
+        return;
+      }
+
+      const qrDataURL = data.data.qrCodeDataURL;
+      openQRCodePopup(form.title, qrDataURL);
+      router.push('/admin/meetings');
+    } catch {
+      setError('网络错误，请重试');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const w = window.open('', '_blank', 'width=420,height=620')!;
-    w.document.write(
-      `<html><body style="margin:0;text-align:center;padding:20px;font-family:sans-serif"><h2>${form.title}</h2><img src="${data.data.qrCodeDataURL}" style="max-width:100%" alt="签到二维码"/><p style="color:#888;margin-top:12px">扫码即可签到</p><button onclick="window.close()" style="margin-top:16px;padding:8px 32px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer">关闭</button></body></html>`
-    );
-    router.push('/admin/meetings');
   };
 
   return (
@@ -52,7 +67,7 @@ export default function NewMeetingPage() {
           <input type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" required />
         </div>
         <div>
-          <label className="block text-sm text-gray-600 mb-1">会议地点</label>
+          <label className="block text-sm text-gray-600 mb-1">会议详细</label>
           <input type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
         </div>
         <div>

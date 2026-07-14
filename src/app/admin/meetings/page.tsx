@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { openQRCodePopup } from '@/lib/qrcode-popup';
 
 interface Meeting {
   id: number;
@@ -15,19 +16,34 @@ interface Meeting {
 export default function MeetingsPage() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
 
   useEffect(() => {
     fetchMeetings();
   }, []);
 
-  const fetchMeetings = async () => {
-    const token = localStorage.getItem('admin_token');
-    const res = await fetch('/api/admin/meetings', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    if (data.success) setMeetings(data.data.meetings);
-    setLoading(false);
+  const fetchMeetings = async (status?: string) => {
+    try {
+      const token = localStorage.getItem('admin_token');
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      const qs = params.toString();
+      const res = await fetch(`/api/admin/meetings${qs ? '?' + qs : ''}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setMeetings(data.data.meetings);
+    } catch {
+      // 网络错误，保留现有数据
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStatusChange = (status: string) => {
+    setStatusFilter(status);
+    setLoading(true);
+    fetchMeetings(status);
   };
 
   const statusLabel = (s: string) =>
@@ -36,17 +52,38 @@ export default function MeetingsPage() {
   const statusColor = (s: string) =>
     s === 'pending' ? 'text-yellow-600' : s === 'active' ? 'text-green-600' : 'text-gray-400';
 
+  const handleDelete = async (m: Meeting) => {
+    if (!confirm(`确定要删除会议「${m.title}」吗？\n\n此操作不可恢复，关联的所有签到记录也将被删除。`)) return;
+
+    try {
+      const token = localStorage.getItem('admin_token');
+      const res = await fetch(`/api/admin/meetings/${m.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMeetings((prev) => prev.filter((item) => item.id !== m.id));
+      } else {
+        alert(data.error || '删除失败');
+      }
+    } catch {
+      alert('网络错误，请重试');
+    }
+  };
+
   const handleQRCode = async (m: Meeting) => {
-    const token = localStorage.getItem('admin_token');
-    const res = await fetch(`/api/admin/meetings/${m.id}/qrcode`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    if (data.success) {
-      const w = window.open('', '_blank', 'width=420,height=620')!;
-      w.document.write(
-        `<html><body style="margin:0;text-align:center;padding:20px;font-family:sans-serif"><h2 style="margin-bottom:12px">${m.title}</h2><img src="${data.data.qrCodeDataURL}" style="max-width:100%" alt="签到二维码"/><p style="color:#888;margin-top:12px">扫码即可签到</p><button onclick="window.close()" style="margin-top:16px;padding:8px 32px;font-size:14px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer">关闭</button></body></html>`
-      );
+    try {
+      const token = localStorage.getItem('admin_token');
+      const res = await fetch(`/api/admin/meetings/${m.id}/qrcode`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        openQRCodePopup(m.title, data.data.qrCodeDataURL);
+      }
+    } catch {
+      alert('获取二维码失败，请重试');
     }
   };
 
@@ -54,7 +91,7 @@ export default function MeetingsPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl font-bold">会议列表</h1>
         <Link
           href="/admin/meetings/new"
@@ -62,6 +99,28 @@ export default function MeetingsPage() {
         >
           + 创建会议
         </Link>
+      </div>
+
+      {/* 状态筛选 Tab */}
+      <div className="flex gap-2 mb-6">
+        {[
+          { value: '', label: '全部' },
+          { value: 'active', label: '进行中' },
+          { value: 'pending', label: '未开始' },
+          { value: 'ended', label: '已结束' },
+        ].map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => handleStatusChange(tab.value)}
+            className={`px-4 py-1.5 rounded text-sm transition-colors ${
+              statusFilter === tab.value
+                ? 'bg-green-500 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-100 border'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {meetings.length === 0 ? (
@@ -105,6 +164,12 @@ export default function MeetingsPage() {
                 >
                   ✏️
                 </Link>
+                <button
+                  onClick={() => handleDelete(m)}
+                  className="text-sm border px-3 py-1 rounded text-red-500 hover:bg-red-50"
+                >
+                  🗑️
+                </button>
               </div>
             </div>
           ))}

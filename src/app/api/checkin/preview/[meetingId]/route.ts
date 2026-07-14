@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getWeWorkUserId } from '@/lib/auth';
+import { getWeWorkUserId, signCheckInToken } from '@/lib/auth';
+import { computeMeetingStatus } from '@/lib/meeting-utils';
+import { proxyAvatarUrl } from '@/lib/avatar';
 
 export async function GET(
   request: Request,
@@ -8,6 +10,9 @@ export async function GET(
 ) {
   const { meetingId: meetingIdStr } = await params;
   const meetingId = parseInt(meetingIdStr);
+  if (isNaN(meetingId) || meetingId < 1) {
+    return NextResponse.json({ success: false, error: '无效的会议ID' }, { status: 400 });
+  }
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
 
@@ -20,7 +25,6 @@ export async function GET(
 
   try {
     const userid = await getWeWorkUserId(code);
-    console.log('[checkin] OAuth code → userid:', userid);
 
     if (!userid) {
       return NextResponse.json(
@@ -35,9 +39,8 @@ export async function GET(
     });
 
     if (!employee) {
-      console.log('[checkin] Employee not found for userid:', userid);
       return NextResponse.json(
-        { success: false, error: `未找到你的信息（企微账号: ${userid}），请联系管理员同步通讯录` },
+        { success: false, error: '未找到你的信息，请联系管理员同步通讯录' },
         { status: 403 }
       );
     }
@@ -59,6 +62,12 @@ export async function GET(
       },
     });
 
+    // 签发一次性确认 token，防止确认接口被伪造请求绕过 OAuth
+    const confirmToken = await signCheckInToken({
+      meetingId,
+      employeeId: employee.id,
+    });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -72,16 +81,27 @@ export async function GET(
           id: employee.id,
           name: employee.name,
           department: employee.department?.name || null,
-          avatar: employee.avatar,
+          avatar: proxyAvatarUrl(employee.avatar),
         },
         alreadyCheckedIn: !!existing,
-        meetingStatus: meeting.status,
+        meetingStatus: computeMeetingStatus(meeting.startTime, meeting.endTime),
+        confirmToken,
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : '服务器错误';
+    console.error('[checkin] preview error:', error instanceof Error ? error.message : error);
+    const message = error instanceof Error ? error.message : '';
+
+    // 企微 OAuth 失败（非企业成员扫码等）
+    if (message.includes('Failed to get') || message.includes('errcode')) {
+      return NextResponse.json(
+        { success: false, error: '企业微信授权失败，请确认你已加入该企业' },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: '服务器错误，请重试' },
       { status: 500 }
     );
   }
