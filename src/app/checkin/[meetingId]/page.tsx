@@ -151,7 +151,7 @@ function CheckInContent() {
               已签到 ✅
             </button>
             <a
-              href={`/checkin/records?code=${code}`}
+              href="/checkin/records"
               className="block text-center text-green-600 underline mt-4 text-sm"
             >
               查看我的签到记录 →
