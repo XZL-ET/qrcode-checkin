@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getWeWorkUserId, signCheckInToken } from '@/lib/auth';
+import { getWeWorkUserId, signCheckInToken, WeWorkOAuthError } from '@/lib/auth';
 import { computeMeetingStatus } from '@/lib/meeting-utils';
 import { proxyAvatarUrl } from '@/lib/avatar';
 
@@ -92,13 +92,29 @@ export async function GET(
     });
   } catch (error) {
     console.error('[checkin] preview error:', error instanceof Error ? error.message : error);
-    const message = error instanceof Error ? error.message : '';
 
-    // 企微 OAuth 失败（非企业成员扫码等）
-    if (message.includes('Failed to get') || message.includes('errcode')) {
+    // OAuth code 已使用/过期 → 提示重新扫码
+    if (error instanceof WeWorkOAuthError && error.errcode === 40029) {
+      return NextResponse.json(
+        { success: false, error: '授权码已失效，请重新扫码' },
+        { status: 403 }
+      );
+    }
+
+    // 企微 OAuth 其他失败（非企业成员扫码等）
+    if (error instanceof WeWorkOAuthError) {
       return NextResponse.json(
         { success: false, error: '企业微信授权失败，请确认你已加入该企业' },
         { status: 403 }
+      );
+    }
+
+    // access_token 获取失败（服务端配置/网络问题）
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('access_token') || message.includes('gettoken')) {
+      return NextResponse.json(
+        { success: false, error: '服务暂时不可用，请稍后重试' },
+        { status: 500 }
       );
     }
 

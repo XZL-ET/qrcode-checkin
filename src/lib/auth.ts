@@ -56,6 +56,17 @@ export async function verifyCheckInToken(token: string): Promise<CheckInTokenPay
   return payload as unknown as CheckInTokenPayload;
 }
 
+/** 企微 getuserinfo 返回的 errcode 类别 */
+export class WeWorkOAuthError extends Error {
+  constructor(
+    message: string,
+    public readonly errcode: number,
+  ) {
+    super(message);
+    this.name = 'WeWorkOAuthError';
+  }
+}
+
 // 企微 OAuth: code 换取 userid
 // 使用缓存的 access_token，避免高并发签到时每个请求都调 gettoken 被企微限频
 export async function getWeWorkUserId(code: string): Promise<string> {
@@ -70,28 +81,50 @@ export async function getWeWorkUserId(code: string): Promise<string> {
   // getAccessToken 内部有并发控制：同时到达的请求共享同一次 gettoken 调用
   const accessToken = await getAccessToken();
 
-  // code 换取 userid（带超时，防止企微 API 无响应导致请求挂起）
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10_000); // 10 秒超时
+  // code 换取 userid（带 1 次重试 + 超时，覆盖瞬时网络抖动）
+  let lastError: unknown;
 
-  try {
-    const userRes = await fetch(
-      `https://qyapi.weixin.qq.com/cgi-bin/user/getuserinfo?access_token=${accessToken}&code=${code}`,
-      { signal: controller.signal }
-    );
-    const userData = await userRes.json();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
 
-    if (userData.errcode !== 0) {
-      throw new Error(`Failed to get userid: ${userData.errmsg}`);
+    try {
+      const userRes = await fetch(
+        `https://qyapi.weixin.qq.com/cgi-bin/user/getuserinfo?access_token=${accessToken}&code=${code}`,
+        { signal: controller.signal }
+      );
+      const userData = await userRes.json();
+
+      if (userData.errcode !== 0) {
+        throw new WeWorkOAuthError(
+          `Failed to get userid: ${userData.errmsg}`,
+          userData.errcode,
+        );
+      }
+
+      // 企微 API 返回的用户标识字段有大小写变体
+      return userData.UserId || userData.userid || userData.openid;
+    } catch (error) {
+      lastError = error;
+
+      // 40029 = code 已使用/过期，重试无意义
+      if (error instanceof WeWorkOAuthError && error.errcode === 40029) {
+        throw error;
+      }
+      // 其他永久性错误也不重试
+      if (error instanceof WeWorkOAuthError) {
+        if ([40003, 40013].includes(error.errcode)) throw error;
+      }
+      // 首次失败，500ms 后重试
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    } finally {
+      clearTimeout(timeout);
     }
-
-    // 企微 API 返回的用户标识字段有大小写变体
-    const userId = userData.UserId || userData.userid || userData.openid;
-
-    return userId;
-  } finally {
-    clearTimeout(timeout);
   }
+
+  throw lastError;
 }
 
 // 生成企微 OAuth 授权 URL
