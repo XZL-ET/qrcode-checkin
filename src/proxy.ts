@@ -33,12 +33,16 @@ export function proxy(request: NextRequest) {
       // 用外部域名构建 redirect_uri（不能用容器内部地址）
       const xProto = request.headers.get('x-forwarded-proto') || 'https';
       const xHost = request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
-      const baseUrl = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || `${xProto}://${xHost}`;
-      const externalUrl = `${baseUrl}${request.nextUrl.pathname}${request.nextUrl.search}`;
-      const redirectUri = encodeURIComponent(externalUrl);
+      const baseUrl = process.env.BASE_URL || process.env.NEXT_PUBLIC_BASE_URL || (xHost ? `${xProto}://${xHost}` : '');
 
-      const authUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${corpId}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&agentid=${agentId}&state=checkin#wechat_redirect`;
-      return NextResponse.redirect(authUrl);
+      // 无法构建有效回调地址时跳过 OAuth 跳转（缺少 BASE_URL 且反代未传 host 头）
+      if (baseUrl) {
+        const externalUrl = `${baseUrl}${request.nextUrl.pathname}${request.nextUrl.search}`;
+        const redirectUri = encodeURIComponent(externalUrl);
+
+        const authUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${corpId}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&agentid=${agentId}&state=checkin#wechat_redirect`;
+        return NextResponse.redirect(authUrl);
+      }
     }
   }
 

@@ -23,6 +23,14 @@ export async function GET(
     );
   }
 
+  // 校验 OAuth code 格式（企微 code 为字母数字），拒绝非法输入
+  if (!/^[a-zA-Z0-9_-]+$/.test(code)) {
+    return NextResponse.json(
+      { success: false, error: '非法的 OAuth code' },
+      { status: 400 }
+    );
+  }
+
   try {
     const userid = await getWeWorkUserId(code);
 

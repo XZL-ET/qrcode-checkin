@@ -59,10 +59,10 @@ async function refreshAccessToken(): Promise<string> {
 
   let lastError: Error | null = null;
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10_000); // 10 秒超时
+      const timeout = setTimeout(() => controller.abort(), 5_000); // 5 秒超时（gettoken 正常 <1s）
 
       const res = await fetch(
         `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${corpId}&corpsecret=${corpSecret}`,

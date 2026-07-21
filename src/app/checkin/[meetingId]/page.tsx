@@ -121,9 +121,10 @@ function CheckInContent() {
           <p className="text-gray-800 text-base mb-4">{error}</p>
           <button
             onClick={loadPreview}
-            className="px-6 py-3 bg-blue-500 text-white rounded-lg text-base font-semibold hover:bg-blue-600"
+            disabled={loading}
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg text-base font-semibold hover:bg-blue-600 disabled:opacity-50"
           >
-            重试
+            {loading ? '重试中...' : '重试'}
           </button>
         </div>
       </div>
