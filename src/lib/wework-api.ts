@@ -33,29 +33,52 @@ export async function getAccessToken(): Promise<string> {
 
   // 防止并发请求同时刷新 token
   if (!tokenPromise) {
-    tokenPromise = (async () => {
-      const corpId = process.env.WEWORK_CORP_ID;
-      const corpSecret = process.env.WEWORK_CORP_SECRET;
+    tokenPromise = refreshAccessToken().finally(() => {
+      tokenPromise = null;
+    });
+  }
+
+  return tokenPromise;
+}
+
+/** 带超时和重试的 token 刷新，失败时不影响已缓存的旧 token */
+async function refreshAccessToken(): Promise<string> {
+  const corpId = process.env.WEWORK_CORP_ID;
+  const corpSecret = process.env.WEWORK_CORP_SECRET;
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000); // 10 秒超时
 
       const res = await fetch(
-        `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${corpId}&corpsecret=${corpSecret}`
+        `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${corpId}&corpsecret=${corpSecret}`,
+        { signal: controller.signal }
       );
+      clearTimeout(timeout);
+
       const data: WeWorkToken = await res.json();
 
       if (data.errcode !== 0) {
-        throw new Error(`获取企微 access_token 失败: ${data.errmsg}`);
+        throw new Error(`获取企微 access_token 失败: ${data.errmsg} (errcode=${data.errcode})`);
       }
 
       cachedToken = data.access_token;
       tokenExpireAt = Date.now() + data.expires_in * 1000;
 
       return cachedToken;
-    })().finally(() => {
-      tokenPromise = null;
-    });
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (attempt < 3) {
+        // 指数退避：1s → 2s，避免雪崩
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+      }
+    }
   }
 
-  return tokenPromise;
+  throw lastError ?? new Error('获取企微 access_token 失败');
 }
 
 /**

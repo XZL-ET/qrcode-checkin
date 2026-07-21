@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useCallback } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 
 interface PreviewData {
@@ -9,6 +9,23 @@ interface PreviewData {
   alreadyCheckedIn: boolean;
   meetingStatus: string;
   confirmToken: string;
+}
+
+/** 指数退避重试 fetch，最多 3 次（1s → 2s → 4s） */
+async function fetchWithRetry(url: string, options?: RequestInit, retries = 3): Promise<Response> {
+  let lastError: unknown;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      return res;
+    } catch (err) {
+      lastError = err;
+      if (i < retries - 1) {
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));
+      }
+    }
+  }
+  throw lastError;
 }
 
 function CheckInContent() {
@@ -22,21 +39,30 @@ function CheckInContent() {
   const [error, setError] = useState('');
   const [checkedIn, setCheckedIn] = useState(false);
 
-  useEffect(() => {
+  const loadPreview = useCallback(async () => {
     if (nonWxwork || !code) return;
+    setLoading(true);
+    setError('');
 
-    fetch(`/api/checkin/preview/${meetingId}?code=${code}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success) {
-          setPreview(data.data);
-          if (data.data.alreadyCheckedIn) setCheckedIn(true);
-        } else {
-          setError(data.error);
-        }
-      })
-      .catch(() => setError('网络错误'));
+    try {
+      const r = await fetchWithRetry(`/api/checkin/preview/${meetingId}?code=${code}`);
+      const data = await r.json();
+      if (data.success) {
+        setPreview(data.data);
+        if (data.data.alreadyCheckedIn) setCheckedIn(true);
+      } else {
+        setError(data.error);
+      }
+    } catch {
+      setError('网络错误，请重试');
+    } finally {
+      setLoading(false);
+    }
   }, [meetingId, code, nonWxwork]);
+
+  useEffect(() => {
+    loadPreview();
+  }, [loadPreview]);
 
   const handleCheckIn = async () => {
     if (!preview) return;
@@ -44,7 +70,7 @@ function CheckInContent() {
     setError('');
 
     try {
-      const res = await fetch(`/api/checkin/confirm/${meetingId}`, {
+      const res = await fetchWithRetry(`/api/checkin/confirm/${meetingId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employeeId: preview.employee.id, token: preview.confirmToken }),
@@ -86,13 +112,19 @@ function CheckInContent() {
     );
   }
 
-  // 错误状态
+  // 错误状态（preview 加载失败时提供重试按钮，避免用户重新扫码）
   if (error && !preview) {
     return (
       <div className="min-h-screen flex items-center justify-center px-6">
         <div className="text-center">
           <div className="text-4xl mb-4">😕</div>
-          <p className="text-gray-800 text-base">{error}</p>
+          <p className="text-gray-800 text-base mb-4">{error}</p>
+          <button
+            onClick={loadPreview}
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg text-base font-semibold hover:bg-blue-600"
+          >
+            重试
+          </button>
         </div>
       </div>
     );
@@ -102,7 +134,7 @@ function CheckInContent() {
   if (!preview) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600 text-lg">加载中...</p>
+        <p className="text-gray-600 text-lg">{loading ? '加载中...' : ''}</p>
       </div>
     );
   }
