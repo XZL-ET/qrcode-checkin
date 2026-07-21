@@ -88,7 +88,13 @@ function CheckInContent() {
           }
         }, 1500);
       } else {
-        setError(data.error);
+        // 重试场景：第一次请求已在服务端签到成功，第二次返回「已签到」
+        // 这是正常结果，不显示为错误
+        if (data.error && (data.error.includes('已签到') || data.error.includes('重复签到'))) {
+          setCheckedIn(true);
+        } else {
+          setError(data.error);
+        }
       }
     } catch {
       setError('签到失败，请重试');
