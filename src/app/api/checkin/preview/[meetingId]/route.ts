@@ -33,10 +33,16 @@ export async function GET(
       );
     }
 
-    const employee = await prisma.employee.findUnique({
-      where: { weworkUserid: userid },
-      include: { department: true },
-    });
+    // 并行查询 employee 和 meeting（互不依赖），减少 DB 连接占用时间
+    const [employee, meeting] = await Promise.all([
+      prisma.employee.findUnique({
+        where: { weworkUserid: userid },
+        include: { department: true },
+      }),
+      prisma.meeting.findUnique({
+        where: { id: meetingId },
+      }),
+    ]);
 
     if (!employee) {
       return NextResponse.json(
@@ -44,10 +50,6 @@ export async function GET(
         { status: 403 }
       );
     }
-
-    const meeting = await prisma.meeting.findUnique({
-      where: { id: meetingId },
-    });
 
     if (!meeting) {
       return NextResponse.json(

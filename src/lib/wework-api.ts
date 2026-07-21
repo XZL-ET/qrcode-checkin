@@ -41,7 +41,18 @@ export async function getAccessToken(): Promise<string> {
   return tokenPromise;
 }
 
-/** 带超时和重试的 token 刷新，失败时不影响已缓存的旧 token */
+/**
+ * 判断企微 API errcode 是否为不可重试的永久性错误
+ * 40001 = invalid credential（secret 错误）
+ * 40003 = invalid corpid
+ * 40013 = invalid corpid
+ * 41002/41004 = corpId/secret 缺失（配置错误）
+ */
+function isPermanentWeWorkError(errcode: number): boolean {
+  return [40001, 40003, 40013, 41002, 41004].includes(errcode);
+}
+
+/** 带超时和智能重试的 token 刷新，永久性错误立即抛出不重试 */
 async function refreshAccessToken(): Promise<string> {
   const corpId = process.env.WEWORK_CORP_ID;
   const corpSecret = process.env.WEWORK_CORP_SECRET;
@@ -62,7 +73,10 @@ async function refreshAccessToken(): Promise<string> {
       const data: WeWorkToken = await res.json();
 
       if (data.errcode !== 0) {
-        throw new Error(`获取企微 access_token 失败: ${data.errmsg} (errcode=${data.errcode})`);
+        const err = new Error(`获取企微 access_token 失败: ${data.errmsg} (errcode=${data.errcode})`);
+        // 永久性错误直接抛出，不重试
+        if (isPermanentWeWorkError(data.errcode)) throw err;
+        throw err;
       }
 
       cachedToken = data.access_token;
@@ -71,6 +85,13 @@ async function refreshAccessToken(): Promise<string> {
       return cachedToken;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+      // 永久性错误立即失败
+      if (lastError.message.includes('errcode=')) {
+        const match = lastError.message.match(/errcode=(\d+)/);
+        if (match && isPermanentWeWorkError(parseInt(match[1]))) {
+          throw lastError;
+        }
+      }
       if (attempt < 3) {
         // 指数退避：1s → 2s，避免雪崩
         await new Promise((r) => setTimeout(r, 1000 * attempt));
