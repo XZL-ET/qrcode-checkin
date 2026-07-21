@@ -26,7 +26,7 @@ let cachedToken: string | null = null;
 let tokenExpireAt: number = 0;
 let tokenPromise: Promise<string> | null = null;
 
-async function getAccessToken(): Promise<string> {
+export async function getAccessToken(): Promise<string> {
   if (cachedToken && Date.now() < tokenExpireAt - 60000) {
     return cachedToken;
   }

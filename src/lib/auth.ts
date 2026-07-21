@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 import type { AdminPayload } from '@/types';
+import { getAccessToken } from '@/lib/wework-api';
 
 const getSecret = () => {
   const secret = process.env.JWT_SECRET;
@@ -56,6 +57,7 @@ export async function verifyCheckInToken(token: string): Promise<CheckInTokenPay
 }
 
 // 企微 OAuth: code 换取 userid
+// 使用缓存的 access_token，避免高并发签到时每个请求都调 gettoken 被企微限频
 export async function getWeWorkUserId(code: string): Promise<string> {
   const corpId = process.env.WEWORK_CORP_ID;
   const corpSecret = process.env.WEWORK_CORP_SECRET;
@@ -64,30 +66,32 @@ export async function getWeWorkUserId(code: string): Promise<string> {
     throw new Error('WeWork credentials not configured');
   }
 
-  // 获取 access_token
-  const tokenRes = await fetch(
-    `https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=${corpId}&corpsecret=${corpSecret}`
-  );
-  const tokenData = await tokenRes.json();
+  // 使用全局缓存的 access_token，而非每次请求新 token
+  // getAccessToken 内部有并发控制：同时到达的请求共享同一次 gettoken 调用
+  const accessToken = await getAccessToken();
 
-  if (tokenData.errcode !== 0) {
-    throw new Error(`Failed to get access_token: ${tokenData.errmsg}`);
+  // code 换取 userid（带超时，防止企微 API 无响应导致请求挂起）
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000); // 10 秒超时
+
+  try {
+    const userRes = await fetch(
+      `https://qyapi.weixin.qq.com/cgi-bin/user/getuserinfo?access_token=${accessToken}&code=${code}`,
+      { signal: controller.signal }
+    );
+    const userData = await userRes.json();
+
+    if (userData.errcode !== 0) {
+      throw new Error(`Failed to get userid: ${userData.errmsg}`);
+    }
+
+    // 企微 API 返回的用户标识字段有大小写变体
+    const userId = userData.UserId || userData.userid || userData.openid;
+
+    return userId;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  // code 换取 userid
-  const userRes = await fetch(
-    `https://qyapi.weixin.qq.com/cgi-bin/user/getuserinfo?access_token=${tokenData.access_token}&code=${code}`
-  );
-  const userData = await userRes.json();
-
-  if (userData.errcode !== 0) {
-    throw new Error(`Failed to get userid: ${userData.errmsg}`);
-  }
-
-  // 企微 API 返回的用户标识字段有大小写变体
-  const userId = userData.UserId || userData.userid || userData.openid;
-
-  return userId;
 }
 
 // 生成企微 OAuth 授权 URL
